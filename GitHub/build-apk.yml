@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main, master ] # Se déclenche quand tu envoies ton code
+    branches: [ main, master ]
 
 jobs:
   build:
@@ -22,14 +22,24 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Install Dependencies
-        run: flutter pub get
+      - name: Create Fresh Project & Inject Code
+        run: |
+          flutter create fresh_app --platforms=android
+          cd fresh_app
+          flutter pub add mobile_scanner http intl
+          
+          # Ligne magique : injecte la permission caméra juste après la balise <manifest>
+          sed -i '/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">/a \    <uses-permission android:name="android.permission.CAMERA" \/>' android/app/src/main/AndroidManifest.xml
+          
+          cp ../lib/main.dart lib/main.dart
 
       - name: Build APK
-        run: flutter build apk --release
+        run: |
+          cd fresh_app
+          flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: fresh_app/build/app/outputs/flutter-apk/app-release.apk
