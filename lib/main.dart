@@ -104,6 +104,13 @@ class _PageScannerState extends State<PageScanner> {
   bool enChargement = false;
   bool modeCamera = false;
   
+  // On crée le contrôleur ici pour éviter le crash "null object reference"
+  MobileScannerController controller = MobileScannerController(
+    detectionSpeed: DetectionSpeed.normal,
+    facing: CameraFacing.back,
+    autoStart: false, // On ne démarre PAS tant que la permission n'est pas acquise
+  );
+
   String? nomProduit;
   String? marqueProduit;
   String? urlImageProduit;
@@ -111,7 +118,12 @@ class _PageScannerState extends State<PageScanner> {
 
   final TextEditingController _eanController = TextEditingController();
 
-  // Technique ultime : demande la permission en direct au système Android
+  @override
+  void dispose() {
+    controller.dispose(); // On nettoie proprement la mémoire quand on quitte
+    super.dispose();
+  }
+
   Future<void> _demanderPermissionEtOuvrirCamera() async {
     var status = await Permission.camera.status;
     if (!status.isGranted) {
@@ -119,11 +131,17 @@ class _PageScannerState extends State<PageScanner> {
     }
 
     if (status.isGranted) {
-      setState(() => modeCamera = true);
+      setState(() {
+        modeCamera = true;
+      });
+      // On démarre la caméra de manière sécurisée après l'affichage du widget
+      Future.delayed(const Duration(milliseconds: 300), () {
+        controller.start();
+      });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Permission caméra refusée. Activez-la dans les paramètres Android.'),
+          content: Text('Permission caméra requise pour scanner en rayon.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -131,6 +149,7 @@ class _PageScannerState extends State<PageScanner> {
   }
 
   void _gererCodeScanne(String code) {
+    controller.stop();
     setState(() {
       codeEanScanne = code;
       modeCamera = false;
@@ -210,6 +229,7 @@ class _PageScannerState extends State<PageScanner> {
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(14),
                     child: MobileScanner(
+                      controller: controller,
                       onDetect: (capture) {
                         final List<Barcode> barcodes = capture.barcodes;
                         for (final barcode in barcodes) {
