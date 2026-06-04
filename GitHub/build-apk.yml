@@ -28,15 +28,13 @@ jobs:
           cd fresh_app
           flutter pub add mobile_scanner http intl permission_handler
           
-          # 1. Injection de la permission caméra dans la configuration Android
+          # 1. Ajout de l'autorisation de l'appareil photo dans Android
           sed -i '/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">/a \    <uses-permission android:name="android.permission.CAMERA" \/>' android/app/src/main/AndroidManifest.xml
           
-          # 2. Forcer la version minimale Android requise pour le scanner (SDK 21)
+          # 2. Forcer la compatibilité matérielle minimale (SDK 21)
           sed -i 's/minSdkVersion .*/minSdkVersion 21/g' android/app/build.gradle
           
-          # 3. TECHNIQUE ULTIME : Forcer l'application à utiliser un thème Android standard pour la caméra
-          sed -i 's/android:theme="@style\/LaunchTheme"/android:theme="@android:style\/Theme.Material.NoActionBar"/g' android/app/src/main/AndroidManifest.xml
-          
+          # 3. Remplacement du code par le main.dart propre
           cp ../lib/main.dart lib/main.dart
 
       - name: Build APK
