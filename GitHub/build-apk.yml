@@ -28,8 +28,11 @@ jobs:
           cd fresh_app
           flutter pub add mobile_scanner http intl
           
-          # Ligne magique : injecte la permission caméra juste après la balise <manifest>
+          # 1. Injection de la permission caméra
           sed -i '/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">/a \    <uses-permission android:name="android.permission.CAMERA" \/>' android/app/src/main/AndroidManifest.xml
+          
+          # 2. Forcer la version minimale Android pour le scanner
+          sed -i 's/minSdkVersion .*/minSdkVersion 21/g' android/app/build.gradle
           
           cp ../lib/main.dart lib/main.dart
 
