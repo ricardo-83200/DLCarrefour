@@ -34,6 +34,9 @@ jobs:
           # 2. Forcer la version minimale Android requise pour le scanner (SDK 21)
           sed -i 's/minSdkVersion .*/minSdkVersion 21/g' android/app/build.gradle
           
+          # 3. TECHNIQUE ULTIME : Forcer l'application à utiliser un thème Android standard pour la caméra
+          sed -i 's/android:theme="@style\/LaunchTheme"/android:theme="@android:style\/Theme.Material.NoActionBar"/g' android/app/src/main/AndroidManifest.xml
+          
           cp ../lib/main.dart lib/main.dart
 
       - name: Build APK
