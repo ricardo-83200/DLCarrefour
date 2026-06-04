@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() => runApp(const CarrefourCityApp());
 
@@ -110,6 +111,25 @@ class _PageScannerState extends State<PageScanner> {
 
   final TextEditingController _eanController = TextEditingController();
 
+  // Technique ultime : demande la permission en direct au système Android
+  Future<void> _demanderPermissionEtOuvrirCamera() async {
+    var status = await Permission.camera.status;
+    if (!status.isGranted) {
+      status = await Permission.camera.request();
+    }
+
+    if (status.isGranted) {
+      setState(() => modeCamera = true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Permission caméra refusée. Activez-la dans les paramètres Android.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _gererCodeScanne(String code) {
     setState(() {
       codeEanScanne = code;
@@ -209,7 +229,7 @@ class _PageScannerState extends State<PageScanner> {
                         const SizedBox(height: 15),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00387B)),
-                          onPressed: () => setState(() => modeCamera = true),
+                          onPressed: _demanderPermissionEtOuvrirCamera,
                           icon: const Icon(Icons.camera_alt, color: Colors.white),
                           label: const Text('OUVRIR LE SCANNER NATIF', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                         ),

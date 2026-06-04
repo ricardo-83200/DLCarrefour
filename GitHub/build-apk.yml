@@ -26,12 +26,12 @@ jobs:
         run: |
           flutter create fresh_app --platforms=android
           cd fresh_app
-          flutter pub add mobile_scanner http intl
+          flutter pub add mobile_scanner http intl permission_handler
           
-          # 1. Injection de la permission caméra
+          # 1. Injection de la permission caméra dans la configuration Android
           sed -i '/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">/a \    <uses-permission android:name="android.permission.CAMERA" \/>' android/app/src/main/AndroidManifest.xml
           
-          # 2. Forcer la version minimale Android pour le scanner
+          # 2. Forcer la version minimale Android requise pour le scanner (SDK 21)
           sed -i 's/minSdkVersion .*/minSdkVersion 21/g' android/app/build.gradle
           
           cp ../lib/main.dart lib/main.dart
