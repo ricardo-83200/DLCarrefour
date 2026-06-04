@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_code_scanner/qr_code_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 void main() => runApp(const CarrefourCityApp());
@@ -110,13 +110,11 @@ class _PageScannerState extends State<PageScanner> {
 
   final TextEditingController _eanController = TextEditingController();
 
-  // Demande la permission et ouvre l'écran de scan s'il est accepté
   Future<void> _ouvrirScannerMobile() async {
     final status = await Permission.camera.request();
     
     if (status.isGranted) {
       if (!mounted) return;
-      // On ouvre l'écran de scan dédié
       final codeBipe = await Navigator.push<String>(
         context,
         MaterialPageRoute(builder: (context) => const EcranCameraUnique()),
@@ -132,7 +130,7 @@ class _PageScannerState extends State<PageScanner> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Permission caméra requise dans les paramètres d\'Android.'),
+          content: Text('Permission caméra requise pour le scan.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -155,8 +153,8 @@ class _PageScannerState extends State<PageScanner> {
           });
         } else {
           setState(() {
-            nomProduit = 'Produit absent de la base';
-            marqueProduit = 'Saisie manuelle';
+            nomProduit = 'Produit inconnu';
+            marqueProduit = 'Manuel';
             urlImageProduit = null;
           });
         }
@@ -215,10 +213,7 @@ class _PageScannerState extends State<PageScanner> {
                   const Icon(Icons.camera_alt, size: 60, color: Color(0xFF00387B)),
                   const SizedBox(height: 15),
                   ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF00387B),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    ),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00387B)),
                     onPressed: _ouvrirScannerMobile,
                     icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
                     label: const Text('OUVRIR LE SCANNER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -239,43 +234,35 @@ class _PageScannerState extends State<PageScanner> {
             child: enChargement
                 ? const Center(child: CircularProgressIndicator())
                 : codeEanScanne == null
-                    ? const Center(child: Text('Aucun scan en cours. Prêt pour le rayon !', style: TextStyle(color: Colors.grey)))
+                    ? const Center(child: Text('Prêt pour le scan en rayon', style: TextStyle(color: Colors.grey)))
                     : SingleChildScrollView(
                         child: Column(
                           children: [
-                            if (urlImageProduit != null) ...[
-                              Image.network(urlImageProduit!, height: 80, errorBuilder: (c, e, s) => const SizedBox()),
-                              const SizedBox(height: 10),
-                            ],
+                            if (urlImageProduit != null) Image.network(urlImageProduit!, height: 80),
                             Text(nomProduit ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                            Text('Marque: ${marqueProduit ?? ""}', style: const TextStyle(color: Colors.grey)),
                             Text('EAN: $codeEanScanne', style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
                             const Divider(height: 30),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('Sélectionner la DLC :', style: TextStyle(fontWeight: FontWeight.bold)),
-                                TextButton.icon(
-                                  icon: const Icon(Icons.date_range, color: Color(0xFF00387B)),
+                                const Text('Sélectionner la DLC :'),
+                                TextButton(
                                   onPressed: () async {
                                     final picked = await showDatePicker(
                                       context: context,
                                       initialDate: _dateSelectionnee,
-                                      firstDate: DateTime.now().subtract(const Duration(days: 30)),
-                                      lastDate: DateTime(2035),
+                                      firstDate: DateTime.now().subtract(const Duration(days: 10)),
+                                      lastDate: DateTime(2030),
                                     );
                                     if (picked != null) setState(() => _dateSelectionnee = picked);
                                   },
-                                  label: Text(DateFormat('dd/MM/yyyy').format(_dateSelectionnee), style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  child: Text(DateFormat('dd/MM/yyyy').format(_dateSelectionnee)),
                                 )
                               ],
                             ),
                             const SizedBox(height: 20),
                             ElevatedButton(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green[700],
-                                minimumSize: const Size.fromHeight(45),
-                              ),
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700]),
                               onPressed: () {
                                 widget.onSave(ProduitScanne(
                                   ean: codeEanScanne!,
@@ -284,17 +271,12 @@ class _PageScannerState extends State<PageScanner> {
                                   urlImage: urlImageProduit,
                                   dlc: _dateSelectionnee,
                                 ));
-                                setState(() {
-                                  codeEanScanne = null;
-                                  nomProduit = null;
-                                  marqueProduit = null;
-                                  urlImageProduit = null;
-                                });
+                                setState(() => codeEanScanne = null);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Produit enregistré avec succès !'), backgroundColor: Colors.green),
+                                  const SnackBar(content: Text('Produit enregistré !'), backgroundColor: Colors.green),
                                 );
                               },
-                              child: const Text('VALIDER ET ENREGISTRER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              child: const Text('VALIDER ET ENREGISTRER', style: TextStyle(color: Colors.white)),
                             )
                           ],
                         ),
@@ -306,7 +288,7 @@ class _PageScannerState extends State<PageScanner> {
   }
 }
 
-// Fenêtre de caméra isolée pour empêcher TOUT plantage de pointeur nul
+// Nouvel écran de caméra utilisant le package qr_code_scanner autonome
 class EcranCameraUnique extends StatefulWidget {
   const EcranCameraUnique({super.key});
 
@@ -315,43 +297,51 @@ class EcranCameraUnique extends StatefulWidget {
 }
 
 class _EcranCameraUniqueState extends State<EcranCameraUnique> {
-  final MobileScannerController _controlleurCamera = MobileScannerController(
-    detectionSpeed: DetectionSpeed.normal,
-    facing: CameraFacing.back,
-  );
+  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
+  QRViewController? controller;
 
+  // Indispensable sur Android pour que la caméra redémarre correctement au changement de fenêtre
   @override
-  void dispose() {
-    _controlleurCamera.dispose();
-    super.dispose();
+  void reassemble() {
+    super.reassemble();
+    controller?.pauseCamera();
+    controller?.resumeCamera();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Scanner le code produit', style: TextStyle(color: Colors.white)),
-        backgroundColor: const Color(0xFF00387B),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+      body: QRView(
+        key: qrKey,
+        onQRViewCreated: _onQRViewCreated,
+        overlay: QrScannerOverlayShape(
+          borderColor: const Color(0xFF00387B),
+          borderRadius: 10,
+          borderLength: 30,
+          borderWidth: 10,
+          cutOutSize: 250,
         ),
       ),
-      body: MobileScanner(
-        controller: _controlleurCamera,
-        onDetect: (capture) {
-          final List<Barcode> barcodes = capture.barcodes;
-          for (final barcode in barcodes) {
-            if (barcode.rawValue != null) {
-              final String codeEan = barcode.rawValue!;
-              _controlleurCamera.stop();
-              Navigator.pop(context, codeEan); // Renvoie le code-barres et ferme la caméra
-              break;
-            }
-          }
-        },
-      ),
     );
+  }
+
+  void _onQRViewCreated(QRViewController controller) {
+    this.controller = controller;
+    // On force l'appareil photo à s'activer
+    controller.resumeCamera();
+    
+    controller.scannedDataStream.listen((scanData) {
+      if (scanData.code != null && scanData.code!.isNotEmpty) {
+        controller.dispose();
+        Navigator.pop(context, scanData.code); // Renvoie le code barre et ferme l'écran
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    controller?.dispose();
+    super.dispose();
   }
 }
 
@@ -379,40 +369,20 @@ class _PageHistoriqueState extends State<PageHistorique> {
           padding: const EdgeInsets.all(8.0),
           child: TextField(
             onChanged: (v) => setState(() => _recherche = v),
-            decoration: const InputDecoration(
-              hintText: 'Rechercher un EAN ou produit...',
-              prefixIcon: Icon(Icons.search, color: Color(0xFF00387B)),
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(hintText: 'Rechercher...', prefixIcon: Icon(Icons.search)),
           ),
         ),
         Expanded(
           child: filtres.isEmpty
-              ? const Center(child: Text('Aucun produit dans la liste des DLC.'))
+              ? const Center(child: Text('Aucun produit enregistré.'))
               : ListView.builder(
                   itemCount: filtres.length,
                   itemBuilder: (context, index) {
                     final p = filtres[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      child: ListTile(
-                        leading: p.urlImage != null 
-                            ? Image.network(p.urlImage!, width: 40, errorBuilder: (c, e, s) => const Icon(Icons.shopping_bag))
-                            : const Icon(Icons.shopping_bag, color: Color(0xFF00387B)),
-                        title: Text(p.nom, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('EAN: ${p.ean}\nMarque: ${p.marque}'),
-                        trailing: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.orange[100],
-                            borderRadius: BorderRadius.circular(5),
-                          ),
-                          child: Text(
-                            DateFormat('dd/MM/yy').format(p.dlc),
-                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange[900]),
-                          ),
-                        ),
-                      ),
+                    return ListTile(
+                      title: Text(p.nom),
+                      subtitle: Text('EAN: ${p.ean}'),
+                      trailing: Text(DateFormat('dd/MM/yy').format(p.dlc), style: const TextStyle(fontWeight: FontWeight.bold)),
                     );
                   },
                 ),

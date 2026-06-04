@@ -27,16 +27,18 @@ jobs:
           flutter create fresh_app --platforms=android
           cd fresh_app
           
-          # FORCE l'utilisation de la version ultra-stable 3.5.2
-          flutter pub add mobile_scanner:3.5.2 http intl permission_handler
+          # Ajout des packages
+          flutter pub add qr_code_scanner http intl permission_handler
           
-          # 1. Ajout de l'autorisation de l'appareil photo dans Android
+          # 1. Injection de la permission caméra
           sed -i '/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">/a \    <uses-permission android:name="android.permission.CAMERA" \/>' android/app/src/main/AndroidManifest.xml
           
-          # 2. Forcer la compatibilité matérielle minimale (SDK 21)
+          # 2. Forcer la version minimale Android SDK 21
           sed -i 's/minSdkVersion .*/minSdkVersion 21/g' android/app/build.gradle
           
-          # 3. Remplacement du code par le main.dart propre
+          # 3. TECHNIQUE ULTIME : Injecter la version de Kotlin requise par le scanner
+          sed -i 's/ext.kotlin_version = .*/ext.kotlin_version = "1.9.20"/g' android/build.gradle || sed -i '/buildscript {/a \    ext.kotlin_version = "1.9.20"' android/build.gradle
+          
           cp ../lib/main.dart lib/main.dart
 
       - name: Build APK
