@@ -109,26 +109,21 @@ class _PageScannerState extends State<PageScanner> {
 
   final TextEditingController _eanController = TextEditingController();
 
-  // Ouvre le scanner compatible Web
+  // Ouvre le scanner compatible Web de manière ultra-stable
   Future<void> _ouvrirScannerWeb() async {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => AiBarcodeScanner(
           canPop: true,
           onScan: (String value) {
-            debugPrint("Code détecté : $value");
-          },
-          onDetect: (BarcodeCapture capture) {
-            final String? code = capture.labels.firstOrNull ?? capture.rawButtonPress;
-            if (code != null && code.isNotEmpty) {
+            if (value.isNotEmpty) {
               setState(() {
-                codeEanScanne = code;
+                codeEanScanne = value;
               });
-              rechercherProduit(code);
+              rechercherProduit(value);
               Navigator.pop(context);
             }
           },
-          validator: (value) => value.isNotEmpty,
         ),
       ),
     );
@@ -282,7 +277,7 @@ class _PageScannerState extends State<PageScanner> {
                                   const SnackBar(content: Text('Enregistré dans Mes DLC !'), backgroundColor: Colors.green),
                                 );
                               },
-                              child: const Text('VALIDER AND ENREGISTRER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              child: const Text('VALIDER ET ENREGISTRER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                             )
                           ],
                         ),
