@@ -1,11 +1,15 @@
-name: Build Android APK
+name: Build and Deploy Flutter Web to GitHub Pages
 
 on:
   push:
     branches: [ main, master ]
 
+# Donne les autorisations nécessaires à GitHub pour publier le site
+permissions:
+  contents: write
+
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -22,29 +26,22 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Create Fresh Project & Inject Code
+      - name: Create Fresh Project & Build Web
         run: |
-          flutter create fresh_app --platforms=android
+          flutter create fresh_app --platforms=web
           cd fresh_app
           
-          # Ajout du package de scan par appel systeme natif
-          flutter pub add barcode_scan2 http intl permission_handler
+          # Ajout des extensions compatibles web
+          flutter pub add ai_barcode_scanner http intl
           
-          # 1. Injection de la permission appareil photo
-          sed -i '/<manifest xmlns:android="http:\/\/schemas.android.com\/apk\/res\/android">/a \    <uses-permission android:name="android.permission.CAMERA" \/>' android/app/src/main/AndroidManifest.xml
-          
-          # 2. Forcer SDK minimal requis (SDK 21)
-          sed -i 's/minSdkVersion .*/minSdkVersion 21/g' android/app/build.gradle
-          
+          # Remplacement du code source
           cp ../lib/main.dart lib/main.dart
+          
+          # Compilation de l'application en mode Web pour GitHub Pages
+          flutter build web --release --base-href "/${{ github.event.repository.name }}/"
 
-      - name: Build APK
-        run: |
-          cd fresh_app
-          flutter build apk --release
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Deploy to GitHub Pages 🚀
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          name: release-apk
-          path: fresh_app/build/app/outputs/flutter-apk/app-release.apk
+          folder: fresh_app/build/web
+          branch: gh-pages # Crée une branche spéciale pour le site web

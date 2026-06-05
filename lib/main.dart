@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:barcode_scan2/barcode_scan2.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:ai_barcode_scanner/ai_barcode_scanner.dart';
 
 void main() => runApp(const CarrefourCityApp());
 
@@ -110,43 +109,29 @@ class _PageScannerState extends State<PageScanner> {
 
   final TextEditingController _eanController = TextEditingController();
 
-  // Déclenche le scan via le moteur natif Android indépendant
-  Future<void> _lancerScanNatif() async {
-    final status = await Permission.camera.request();
-    
-    if (status.isGranted) {
-      try {
-        // Options de scan pour forcer le format de codes-barres des produits (EAN)
-        var options = const ScanOptions(
-          strings: {
-            'cancel': 'Annuler',
-            'flash_on': 'Allumer le flash',
-            'flash_off': 'Éteindre le flash',
+  // Ouvre le scanner compatible Web
+  Future<void> _ouvrirScannerWeb() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => AiBarcodeScanner(
+          canPop: true,
+          onScan: (String value) {
+            debugPrint("Code détecté : $value");
           },
-          restrictFormat: [BarcodeFormat.ean8, BarcodeFormat.ean13],
-          useCamera: -1, // Utilise la caméra arrière par défaut automatiquement
-        );
-
-        var result = await BarcodeScanner.scan(options: options);
-        
-        if (result.type == ResultType.Barcode && result.rawContent.isNotEmpty) {
-          setState(() {
-            codeEanScanne = result.rawContent;
-          });
-          rechercherProduit(result.rawContent);
-        }
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur d\'ouverture de la caméra : $e'), backgroundColor: Colors.red),
-        );
-      }
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('L\'accès à l\'appareil photo est nécessaire.'), backgroundColor: Colors.red),
-      );
-    }
+          onDetect: (BarcodeCapture capture) {
+            final String? code = capture.labels.firstOrNull ?? capture.rawButtonPress;
+            if (code != null && code.isNotEmpty) {
+              setState(() {
+                codeEanScanne = code;
+              });
+              rechercherProduit(code);
+              Navigator.pop(context);
+            }
+          },
+          validator: (value) => value.isNotEmpty,
+        ),
+      ),
+    );
   }
 
   Future<void> rechercherProduit(String barcode) async {
@@ -222,20 +207,20 @@ class _PageScannerState extends State<PageScanner> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.qr_code_2, size: 70, color: Color(0xFF00387B)),
+                  const Icon(Icons.language, size: 70, color: Color(0xFF00387B)),
                   const SizedBox(height: 15),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00387B),
                       padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
                     ),
-                    onPressed: _lancerScanNatif,
+                    onPressed: _ouvrirScannerWeb,
                     icon: const Icon(Icons.camera_alt, color: Colors.white),
-                    label: const Text('LANCER LE SCANNER EN RAYON', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    label: const Text('OUVRIR LE SCANNER WEB', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                   TextButton(
                     onPressed: _ouvrirSaisieManuelle,
-                    child: const Text('Saisir le code barres manuellement', style: TextStyle(color: Colors.grey)),
+                    child: const Text('Saisir le code manuellement', style: TextStyle(color: Colors.grey)),
                   )
                 ],
               ),
@@ -249,7 +234,7 @@ class _PageScannerState extends State<PageScanner> {
             child: enChargement
                 ? const Center(child: CircularProgressIndicator())
                 : codeEanScanne == null
-                    ? const Center(child: Text('Prêt pour le contrôle des rayons.', style: TextStyle(color: Colors.grey)))
+                    ? const Center(child: Text('Version Web active. Prêt pour le rayon !', style: TextStyle(color: Colors.grey)))
                     : SingleChildScrollView(
                         child: Column(
                           children: [
@@ -297,7 +282,7 @@ class _PageScannerState extends State<PageScanner> {
                                   const SnackBar(content: Text('Enregistré dans Mes DLC !'), backgroundColor: Colors.green),
                                 );
                               },
-                              child: const Text('VALIDER ET SAUVEGARDER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              child: const Text('VALIDER AND ENREGISTRER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                             )
                           ],
                         ),
@@ -342,7 +327,7 @@ class _PageHistoriqueState extends State<PageHistorique> {
         ),
         Expanded(
           child: filtres.isEmpty
-              ? const Center(child: Text('Aucun produit enregistré pour le moment.'))
+              ? const Center(child: Text('Aucun produit enregistré.'))
               : ListView.builder(
                   itemCount: filtres.length,
                   itemBuilder: (context, index) {
@@ -354,7 +339,7 @@ class _PageHistoriqueState extends State<PageHistorique> {
                         subtitle: Text('EAN: ${p.ean}'),
                         trailing: Text(
                           DateFormat('dd/MM/yyyy').format(p.dlc),
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
                         ),
                       ),
                     );
