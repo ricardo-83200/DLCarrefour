@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:barcode_scan2/barcode_scan2.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 void main() => runApp(const CarrefourCityApp());
@@ -110,29 +110,41 @@ class _PageScannerState extends State<PageScanner> {
 
   final TextEditingController _eanController = TextEditingController();
 
-  Future<void> _ouvrirScannerMobile() async {
+  // Déclenche le scan via le moteur natif Android indépendant
+  Future<void> _lancerScanNatif() async {
     final status = await Permission.camera.request();
     
     if (status.isGranted) {
-      if (!mounted) return;
-      final codeBipe = await Navigator.push<String>(
-        context,
-        MaterialPageRoute(builder: (context) => const EcranCameraUnique()),
-      );
+      try {
+        // Options de scan pour forcer le format de codes-barres des produits (EAN)
+        var options = const ScanOptions(
+          strings: {
+            'cancel': 'Annuler',
+            'flash_on': 'Allumer le flash',
+            'flash_off': 'Éteindre le flash',
+          },
+          restrictFormat: [BarcodeFormat.ean8, BarcodeFormat.ean13],
+          useCamera: -1, // Utilise la caméra arrière par défaut automatiquement
+        );
 
-      if (codeBipe != null && codeBipe.isNotEmpty) {
-        setState(() {
-          codeEanScanne = codeBipe;
-        });
-        rechercherProduit(codeBipe);
+        var result = await BarcodeScanner.scan(options: options);
+        
+        if (result.type == ResultType.Barcode && result.rawContent.isNotEmpty) {
+          setState(() {
+            codeEanScanne = result.rawContent;
+          });
+          rechercherProduit(result.rawContent);
+        }
+      } catch (e) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur d\'ouverture de la caméra : $e'), backgroundColor: Colors.red),
+        );
       }
     } else {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Permission caméra requise pour le scan.'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('L\'accès à l\'appareil photo est nécessaire.'), backgroundColor: Colors.red),
       );
     }
   }
@@ -147,7 +159,7 @@ class _PageScannerState extends State<PageScanner> {
         if (data['status'] == 1) {
           final product = data['product'];
           setState(() {
-            nomProduit = product['product_name_fr'] ?? product['product_name'] ?? 'Produit inconnu';
+            nomProduit = product['product_name_fr'] ?? product['product_name'] ?? 'Produit sans nom';
             marqueProduit = product['brands'] ?? 'Marque inconnue';
             urlImageProduit = product['image_front_thumb_url'];
           });
@@ -210,17 +222,20 @@ class _PageScannerState extends State<PageScanner> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.camera_alt, size: 60, color: Color(0xFF00387B)),
+                  const Icon(Icons.qr_code_2, size: 70, color: Color(0xFF00387B)),
                   const SizedBox(height: 15),
                   ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF00387B)),
-                    onPressed: _ouvrirScannerMobile,
-                    icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
-                    label: const Text('OUVRIR LE SCANNER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF00387B),
+                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                    ),
+                    onPressed: _lancerScanNatif,
+                    icon: const Icon(Icons.camera_alt, color: Colors.white),
+                    label: const Text('LANCER LE SCANNER EN RAYON', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                   TextButton(
                     onPressed: _ouvrirSaisieManuelle,
-                    child: const Text('Taper le code à la main', style: TextStyle(color: Colors.grey)),
+                    child: const Text('Saisir le code barres manuellement', style: TextStyle(color: Colors.grey)),
                   )
                 ],
               ),
@@ -234,35 +249,41 @@ class _PageScannerState extends State<PageScanner> {
             child: enChargement
                 ? const Center(child: CircularProgressIndicator())
                 : codeEanScanne == null
-                    ? const Center(child: Text('Prêt pour le scan en rayon', style: TextStyle(color: Colors.grey)))
+                    ? const Center(child: Text('Prêt pour le contrôle des rayons.', style: TextStyle(color: Colors.grey)))
                     : SingleChildScrollView(
                         child: Column(
                           children: [
-                            if (urlImageProduit != null) Image.network(urlImageProduit!, height: 80),
+                            if (urlImageProduit != null) ...[
+                              Image.network(urlImageProduit!, height: 90),
+                              const SizedBox(height: 10),
+                            ],
                             Text(nomProduit ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                             Text('EAN: $codeEanScanne', style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
                             const Divider(height: 30),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('Sélectionner la DLC :'),
+                                const Text('Date de péremption (DLC) :'),
                                 TextButton(
                                   onPressed: () async {
                                     final picked = await showDatePicker(
                                       context: context,
                                       initialDate: _dateSelectionnee,
                                       firstDate: DateTime.now().subtract(const Duration(days: 10)),
-                                      lastDate: DateTime(2030),
+                                      lastDate: DateTime(2035),
                                     );
                                     if (picked != null) setState(() => _dateSelectionnee = picked);
                                   },
-                                  child: Text(DateFormat('dd/MM/yyyy').format(_dateSelectionnee)),
+                                  child: Text(DateFormat('dd/MM/yyyy').format(_dateSelectionnee), style: const TextStyle(fontWeight: FontWeight.bold)),
                                 )
                               ],
                             ),
-                            const SizedBox(height: 20),
+                            const SizedBox(height: 25),
                             ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green[700]),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green[700],
+                                minimumSize: const Size.fromHeight(48),
+                              ),
                               onPressed: () {
                                 widget.onSave(ProduitScanne(
                                   ean: codeEanScanne!,
@@ -273,10 +294,10 @@ class _PageScannerState extends State<PageScanner> {
                                 ));
                                 setState(() => codeEanScanne = null);
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Produit enregistré !'), backgroundColor: Colors.green),
+                                  const SnackBar(content: Text('Enregistré dans Mes DLC !'), backgroundColor: Colors.green),
                                 );
                               },
-                              child: const Text('VALIDER ET ENREGISTRER', style: TextStyle(color: Colors.white)),
+                              child: const Text('VALIDER ET SAUVEGARDER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                             )
                           ],
                         ),
@@ -285,63 +306,6 @@ class _PageScannerState extends State<PageScanner> {
         )
       ],
     );
-  }
-}
-
-// Nouvel écran de caméra utilisant le package qr_code_scanner autonome
-class EcranCameraUnique extends StatefulWidget {
-  const EcranCameraUnique({super.key});
-
-  @override
-  State<EcranCameraUnique> createState() => _EcranCameraUniqueState();
-}
-
-class _EcranCameraUniqueState extends State<EcranCameraUnique> {
-  final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
-  QRViewController? controller;
-
-  // Indispensable sur Android pour que la caméra redémarre correctement au changement de fenêtre
-  @override
-  void reassemble() {
-    super.reassemble();
-    controller?.pauseCamera();
-    controller?.resumeCamera();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: QRView(
-        key: qrKey,
-        onQRViewCreated: _onQRViewCreated,
-        overlay: QrScannerOverlayShape(
-          borderColor: const Color(0xFF00387B),
-          borderRadius: 10,
-          borderLength: 30,
-          borderWidth: 10,
-          cutOutSize: 250,
-        ),
-      ),
-    );
-  }
-
-  void _onQRViewCreated(QRViewController controller) {
-    this.controller = controller;
-    // On force l'appareil photo à s'activer
-    controller.resumeCamera();
-    
-    controller.scannedDataStream.listen((scanData) {
-      if (scanData.code != null && scanData.code!.isNotEmpty) {
-        controller.dispose();
-        Navigator.pop(context, scanData.code); // Renvoie le code barre et ferme l'écran
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    controller?.dispose();
-    super.dispose();
   }
 }
 
@@ -369,20 +333,30 @@ class _PageHistoriqueState extends State<PageHistorique> {
           padding: const EdgeInsets.all(8.0),
           child: TextField(
             onChanged: (v) => setState(() => _recherche = v),
-            decoration: const InputDecoration(hintText: 'Rechercher...', prefixIcon: Icon(Icons.search)),
+            decoration: const InputDecoration(
+              hintText: 'Rechercher un produit...',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(),
+            ),
           ),
         ),
         Expanded(
           child: filtres.isEmpty
-              ? const Center(child: Text('Aucun produit enregistré.'))
+              ? const Center(child: Text('Aucun produit enregistré pour le moment.'))
               : ListView.builder(
                   itemCount: filtres.length,
                   itemBuilder: (context, index) {
                     final p = filtres[index];
-                    return ListTile(
-                      title: Text(p.nom),
-                      subtitle: Text('EAN: ${p.ean}'),
-                      trailing: Text(DateFormat('dd/MM/yy').format(p.dlc), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      child: ListTile(
+                        title: Text(p.nom, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('EAN: ${p.ean}'),
+                        trailing: Text(
+                          DateFormat('dd/MM/yyyy').format(p.dlc),
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                        ),
+                      ),
                     );
                   },
                 ),
